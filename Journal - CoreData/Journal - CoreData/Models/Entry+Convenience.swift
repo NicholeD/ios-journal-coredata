@@ -38,7 +38,7 @@ extension Entry {
 //
     @discardableResult convenience init(identifier: String = String(),
                                         title: String,
-                                        timestamp: Date,
+                                        timestamp: Date = Date(),
                                         bodyText: String,
                                         mood: EntryMood = .😐,
                                         context: NSManagedObjectContext = CoreDataStack.shared.mainContext) {

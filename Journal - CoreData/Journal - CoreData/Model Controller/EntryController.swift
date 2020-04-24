@@ -49,11 +49,13 @@ class EntryController {
                 return
             }
             
-            var entries: [EntryRepresentation] = []
+            var entryRepresentations: [EntryRepresentation] = []
+            
             
             do {
-                let entryRepresentations = Array(try JSONDecoder().decode([String: EntryRepresentation].self, from: data).values)
-                entries = entryRepresentations
+                let decoder = JSONDecoder()
+                entryRepresentations = Array(try decoder.decode([String: EntryRepresentation].self, from: data).values)
+                decoder.dateDecodingStrategy = .iso8601
                 self.updateEntries(with: entryRepresentations)
                 completion(.success(true))
                 return
@@ -131,34 +133,36 @@ class EntryController {
         let fetchRequest: NSFetchRequest<Entry> = Entry.fetchRequest()
         fetchRequest.predicate = NSPredicate(format: "identifier IN %@", identifiersToFetch)
         
-        let context = CoreDataStack.shared.mainContext
+        let context = CoreDataStack.shared.container.newBackgroundContext()
         
-        do {
-            let existingEntries = try context.fetch(fetchRequest)
-            
-            for entry in existingEntries {
-                guard let id = entry.identifier,
-                    let representation = representationsByID[id] else { continue }
-                self.update(entry: entry, with: representation)
-                entriesToCreate.removeValue(forKey: id)
+        context.perform {
+            do {
+                let existingEntries = try context.fetch(fetchRequest)
                 
+                for entry in existingEntries {
+                    guard let id = entry.identifier,
+                        let representation = representationsByID[id] else { continue }
+                    self.update(entry: entry, with: representation)
+                    entriesToCreate.removeValue(forKey: id)
+                    
+                }
+                self.saveToPersistentStore()
+                
+                for representation in entriesToCreate.values {
+                    Entry(entryRepresentation: representation, context: context)
+                }
+                self.saveToPersistentStore()
+                try context.save()
+            }catch {
+                NSLog("Error fetching tasks with IDs: \(identifiersToFetch), with error: \(error)")
             }
-            saveToPersistentStore()
-            
-            for representation in entriesToCreate.values {
-                Entry(entryRepresentation: representation, context: context)
-            }
-            saveToPersistentStore()
-            try CoreDataStack.shared.mainContext.save()
-        }catch {
-            NSLog("Error fetching tasks with IDs: \(identifiersToFetch), with error: \(error)")
         }
     }
     
     func update(entry: Entry, with representation: EntryRepresentation) {
         entry.title = representation.title
         entry.identifier = representation.identifier
-        entry.timestamp = representation.timestamp
+        entry.timestamp = Date()
         entry.bodyText = representation.bodyText
         entry.mood = representation.mood
     }
@@ -166,18 +170,19 @@ class EntryController {
     
     //    var entry: Entry?
     //
-        func saveToPersistentStore() {
-            
-//            guard entry != nil else { return }
-
-            do {
-                try CoreDataStack.shared.mainContext.save()
-            } catch {
-                NSLog("Error saving managed object context: \(error)")
-                return
-            }
-    
+    func saveToPersistentStore() {
+       let context = CoreDataStack.shared.container.newBackgroundContext()
+        //            guard entry != nil else { return }
+        context.perform {
+        do {
+            try context.save()
+        } catch {
+            NSLog("Error saving managed object context: \(error)")
+            return
         }
+        }
+        
+    }
     //
     //    func loadFromPersistentStore() -> [Entry] {
     //        let fetchRequest: NSFetchRequest<Entry> = Entry.fetchRequest()
