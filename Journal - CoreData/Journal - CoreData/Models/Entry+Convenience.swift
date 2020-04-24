@@ -10,9 +10,9 @@ import Foundation
 import CoreData
 
 enum EntryMood: String, CaseIterable {
-    case 🙁
-    case 😐
-    case 🙂
+    case 🙁 = "sad"
+    case 😐 = "neutral"
+    case 🙂 = "happy"
 }
 
 extension Entry {
